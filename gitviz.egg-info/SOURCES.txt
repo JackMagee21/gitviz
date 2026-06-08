@@ -1,3 +1,4 @@
+LICENSE.txt
 README.md
 pyproject.toml
 gitviz/__init__.py
@@ -9,9 +10,11 @@ gitviz.egg-info/entry_points.txt
 gitviz.egg-info/requires.txt
 gitviz.egg-info/top_level.txt
 gitviz/analytics/contributors.py
+gitviz/analytics/stats.py
 gitviz/core/commits.py
 gitviz/core/repo.py
 tests/conftest.py
 tests/test_commits.py
 tests/test_contributors.py
 tests/test_repo.py
+tests/test_stats.py

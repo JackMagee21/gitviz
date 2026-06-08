@@ -1,3 +1,7 @@
 gitpython
 click
 rich
+
+[dev]
+pytest>=8
+ruff

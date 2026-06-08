@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import git
 
 
@@ -7,14 +7,7 @@ class RepoError(Exception):
 
 
 def open_repo(path: str) -> git.Repo:
-    """Open a Git repository at the given path.
-
-    Walks up parent directories to find the repository root, so callers
-    may pass any subdirectory within a repo.
-
-    Raises:
-        RepoError: if the path does not exist, or no Git repository is found.
-    """
+    """Open a Git repository at the given path."""
     resolved = Path(path).resolve()
 
     if not resolved.exists():
