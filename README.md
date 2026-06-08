@@ -247,32 +247,7 @@ Displays a panel grid of high-level repository metrics.
 
 ```bash
 gitviz stats . --since "6 months ago"
-```
 
----
-
-## Project Structure
-
-```
-gitviz/
-├── cli.py                        # Click entry point; all command definitions
-├── core/
-│   ├── repo.py                   # Repository discovery and error handling
-│   └── commits.py                # Raw commit extraction via git log
-└── analytics/
-    ├── contributors.py           # Per-author aggregation and percentage share
-    └── stats.py                  # High-level repository statistics
-
-scripts/
-├── install.ps1                   # Windows auto-installer (handles PATH)
-└── install.sh                    # Mac/Linux auto-installer (handles PATH)
-
-tests/
-├── conftest.py                   # Shared pytest fixtures (in-memory git repo)
-├── test_commits.py               # Unit tests for commit extraction
-├── test_contributors.py          # Unit tests for contributor analytics
-├── test_repo.py                  # Unit tests for repository discovery
-└── test_stats.py                 # Unit tests for repository statistics
 ```
 
 ### Layer responsibilities
