@@ -17,3 +17,5 @@ env/
 
 Thumbs.db
 Desktop.ini
+
+build/
