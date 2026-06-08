@@ -1,147 +1,64 @@
-import click
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich.columns import Columns
-from rich import box
-
-from gitviz.core.repo import open_repo, RepoError
-from gitviz.core.commits import get_commits
-from gitviz.analytics.contributors import get_contributor_stats, contribution_percentage
-from gitviz.analytics.stats import get_repo_stats
-
-console = Console()
+from dataclasses import dataclass
+from collections import Counter
+from datetime import datetime
+from gitviz.core.commits import CommitInfo
+from gitviz.analytics.contributors import get_contributor_stats
 
 
-@click.group()
-def main():
-    """Git Visualizer - analyze and visualize your Git history."""
-    pass
+@dataclass
+class RepoStats:
+    total_commits: int
+    total_authors: int
+    total_insertions: int
+    total_deletions: int
+    most_active_day: str
+    most_active_author: str
+    first_commit: datetime
+    latest_commit: datetime
+    avg_commits_per_day: float
 
 
-@main.command()
-@click.argument("path", default=".")
-@click.option("--limit", "-n", default=20, help="Number of commits to show.")
-def log(path, limit):
-    """Show recent commits in a formatted table."""
-    try:
-        repo = open_repo(path)
-    except RepoError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        raise SystemExit(1)
+def get_repo_stats(commits: list[CommitInfo]) -> RepoStats:
+    """Compute high-level repository statistics from a list of commits.
 
-    commits = get_commits(repo, max_count=limit)
+    Delegates author aggregation to ``get_contributor_stats`` so that author
+    deduplication (by email) is consistent across the whole codebase.
 
+    Raises:
+        ValueError: if the commits list is empty.
+    """
     if not commits:
-        console.print("[yellow]No commits found.[/yellow]")
-        return
+        raise ValueError("No commits to analyse.")
 
-    table = Table(title=f"Recent Commits — {repo.working_dir}", show_lines=False)
-    table.add_column("SHA",     style="cyan",  no_wrap=True)
-    table.add_column("Date",    style="dim",   no_wrap=True)
-    table.add_column("Author",  style="green", no_wrap=True)
-    table.add_column("Message", style="white")
-    table.add_column("+",       style="green", justify="right", no_wrap=True)
-    table.add_column("-",       style="red",   justify="right", no_wrap=True)
+    # Reuse contributor aggregation so email-based deduplication is consistent.
+    contributor_stats = get_contributor_stats(commits)
+    total_authors = len(contributor_stats)
+    most_active_author = contributor_stats[0].author if contributor_stats else "—"
 
-    for c in commits:
-        table.add_row(
-            c.sha,
-            c.date.strftime("%Y-%m-%d"),
-            c.author,
-            c.message,
-            str(c.insertions),
-            str(c.deletions),
-        )
+    total_insertions = sum(c.insertions for c in commits)
+    total_deletions = sum(c.deletions for c in commits)
 
-    console.print(table)
+    # Most active day of the week.
+    day_counts = Counter(c.date.strftime("%A") for c in commits)
+    most_active_day = day_counts.most_common(1)[0][0]
 
+    # Date range.
+    dates = [c.date for c in commits]
+    first_commit = min(dates)
+    latest_commit = max(dates)
 
-@main.command()
-@click.argument("path", default=".")
-@click.option("--limit", "-n", default=500, help="Number of commits to analyse.")
-def contributors(path, limit):
-    """Show contributor breakdown — commits, lines changed, and share."""
-    try:
-        repo = open_repo(path)
-    except RepoError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        raise SystemExit(1)
+    # Average commits per calendar day over the repo's lifetime.
+    delta_days = (latest_commit - first_commit).days or 1
+    avg_commits_per_day = round(len(commits) / delta_days, 2)
 
-    commits = get_commits(repo, max_count=limit)
-
-    if not commits:
-        console.print("[yellow]No commits found.[/yellow]")
-        return
-
-    stats = get_contributor_stats(commits)
-    percentages = contribution_percentage(stats)
-
-    table = Table(title=f"Contributors — {repo.working_dir}", show_lines=False)
-    table.add_column("Author",   style="green",  no_wrap=True)
-    table.add_column("Commits",  style="cyan",   justify="right", no_wrap=True)
-    table.add_column("Share",    style="yellow", justify="right", no_wrap=True)
-    table.add_column("+",        style="green",  justify="right", no_wrap=True)
-    table.add_column("-",        style="red",    justify="right", no_wrap=True)
-    table.add_column("Files",    style="dim",    justify="right", no_wrap=True)
-    table.add_column("Activity", no_wrap=True)
-
-    max_commits = stats[0].commits if stats else 1
-
-    for c in stats:
-        pct = percentages.get(c.email, 0.0)
-        bar_len = int((c.commits / max_commits) * 20)
-        bar = "█" * bar_len + "░" * (20 - bar_len)
-
-        table.add_row(
-            c.author,
-            str(c.commits),
-            f"{pct}%",
-            str(c.insertions),
-            str(c.deletions),
-            str(c.files_changed),
-            f"[cyan]{bar}[/cyan]",
-        )
-
-    console.print(table)
-    console.print(f"[dim]Analysed {len(commits)} commits across {len(stats)} contributor(s).[/dim]")
-
-
-@main.command()
-@click.argument("path", default=".")
-@click.option("--limit", "-n", default=500, help="Number of commits to analyse.")
-def stats(path, limit):
-    """Show a high-level summary of repository health."""
-    try:
-        repo = open_repo(path)
-    except RepoError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        raise SystemExit(1)
-
-    commits = get_commits(repo, max_count=limit)
-
-    if not commits:
-        console.print("[yellow]No commits found.[/yellow]")
-        return
-
-    s = get_repo_stats(commits)
-
-    # build stat panels
-    panels = [
-        Panel(f"[cyan]{s.total_commits}[/cyan]",        title="Commits",          expand=True),
-        Panel(f"[cyan]{s.total_authors}[/cyan]",         title="Authors",          expand=True),
-        Panel(f"[green]+{s.total_insertions}[/green]",   title="Insertions",       expand=True),
-        Panel(f"[red]-{s.total_deletions}[/red]",        title="Deletions",        expand=True),
-        Panel(f"[yellow]{s.most_active_day}[/yellow]",   title="Most Active Day",  expand=True),
-        Panel(f"[yellow]{s.most_active_author}[/yellow]",title="Top Author",       expand=True),
-        Panel(f"[cyan]{s.avg_commits_per_day}[/cyan]",   title="Commits/Day",      expand=True),
-        Panel(f"[dim]{s.first_commit.strftime('%Y-%m-%d')}[/dim]", title="First Commit", expand=True),
-        Panel(f"[dim]{s.latest_commit.strftime('%Y-%m-%d')}[/dim]", title="Latest Commit", expand=True),
-    ]
-
-    console.print()
-    console.print(f"[bold]Repository Stats — {repo.working_dir}[/bold]")
-    console.print()
-    console.print(Columns(panels))
-    console.print()
-    console.print(f"[dim]Based on the last {len(commits)} commits.[/dim]")
+    return RepoStats(
+        total_commits=len(commits),
+        total_authors=total_authors,
+        total_insertions=total_insertions,
+        total_deletions=total_deletions,
+        most_active_day=most_active_day,
+        most_active_author=most_active_author,
+        first_commit=first_commit,
+        latest_commit=latest_commit,
+        avg_commits_per_day=avg_commits_per_day,
+    )

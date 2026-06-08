@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from collections import defaultdict
 from gitviz.core.commits import CommitInfo
 
 
@@ -11,6 +10,8 @@ class ContributorStats:
     insertions: int = 0
     deletions: int = 0
     files_changed: int = 0
+    # Populated by get_contributor_stats once the total is known.
+    commit_share: float = field(default=0.0, repr=False)
 
     @property
     def total_changes(self) -> int:
@@ -18,11 +19,16 @@ class ContributorStats:
 
 
 def get_contributor_stats(commits: list[CommitInfo]) -> list[ContributorStats]:
-    """Aggregate commit data by author, sorted by commit count descending."""
+    """Aggregate commit data by author, sorted by commit count descending.
+
+    Authors are deduplicated by email address so that name changes across
+    commits are handled correctly. The ``commit_share`` field on each
+    returned object holds that author's percentage of total commits.
+    """
     authors: dict[str, ContributorStats] = {}
 
     for commit in commits:
-        key = commit.email  # use email as unique key (names can vary)
+        key = commit.email
 
         if key not in authors:
             authors[key] = ContributorStats(author=commit.author, email=commit.email)
@@ -32,12 +38,12 @@ def get_contributor_stats(commits: list[CommitInfo]) -> list[ContributorStats]:
         authors[key].deletions += commit.deletions
         authors[key].files_changed += commit.files_changed
 
-    return sorted(authors.values(), key=lambda c: c.commits, reverse=True)
+    total = sum(s.commits for s in authors.values())
 
+    sorted_stats = sorted(authors.values(), key=lambda c: c.commits, reverse=True)
 
-def contribution_percentage(stats: list[ContributorStats]) -> dict[str, float]:
-    """Returns each author's share of total commits as a percentage."""
-    total = sum(c.commits for c in stats)
-    if total == 0:
-        return {}
-    return {c.email: round((c.commits / total) * 100, 1) for c in stats}
+    if total > 0:
+        for s in sorted_stats:
+            s.commit_share = round((s.commits / total) * 100, 1)
+
+    return sorted_stats

@@ -12,6 +12,12 @@ dependencies = [
     "rich",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff",
+]
+
 [project.scripts]
 gitviz = "gitviz.cli:main"
 
